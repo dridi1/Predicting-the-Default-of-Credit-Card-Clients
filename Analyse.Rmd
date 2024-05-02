@@ -1,0 +1,427 @@
+---
+title: "Predicting the Default of Credit Card Clients"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{=html}
+<style>
+  h1, h2, h3, h4, h5, h6 {
+   font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia, serif;
+  }
+  body {
+  background-color: #fffff8;
+}
+</style>
+```
+
+<hr style="border: 2px solid black;">
+
+```{r include=FALSE}
+library(readr) # Package for loading the csv file. 
+library(dplyr) # Package for manipulate DATA .
+library(ggplot2) # Package for visualize DATA .
+library(plotly) # Package for visualizing DATA in a interactive way .
+library(corrplot)  # Package for visualizing correlation matrices .
+library(DescTools) # Package for descriptive statistics and visualization tools .
+library(ltm)
+library(vcd)
+library(knitr)
+library(kableExtra)
+library(infotheo)
+library(caret)
+library(caTools)
+library(randomForest)
+library(scorecard)
+library(officer)
+
+path_data <- "D:\\project_PFA Default of Credit Card Clients_Dataset_SAMER\\Initial_Dataset\\UCI_Credit_Card.csv"
+UCI_Credit_Card <- data.frame(read.csv(path_data))
+
+
+UCI_Credit_Card<-subset(UCI_Credit_Card,select = -ID) 
+
+colnames(UCI_Credit_Card)[colnames(UCI_Credit_Card) == "PAY_0"] <- "PAY_1"
+colnames(UCI_Credit_Card)[colnames(UCI_Credit_Card) == "default.payment.next.month"] <- "Payment_Status"
+
+col_names_Quanti<-c("LIMIT_BAL","AGE",
+                      "BILL_AMT1","BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5","BILL_AMT6",
+                      "PAY_AMT1","PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6")
+col_names_Cato<-c("SEX","EDUCATION","MARRIAGE",
+                     "PAY_1","PAY_2","PAY_3","PAY_4","PAY_5","PAY_6",
+                     "Payment_Status")
+all_col_names<-c(col_names_Quanti,col_names_Cato)
+
+for (nc in col_names_Cato) {
+  UCI_Credit_Card[[nc]]<-as.factor(UCI_Credit_Card[[nc]])      
+}
+```
+
+## Univariate Analysis:
+
+### Qantitative DATA
+
+```{r}
+summary(UCI_Credit_Card[col_names_Quanti])
+```
+
+> We have:<br> - Negative BILL_AMT ? We should investigate that .<br>
+
+### Analysing LIMIT_BAL using histogram
+
+```{r}
+gg <- ggplot(UCI_Credit_Card, aes(x = LIMIT_BAL, fill = Payment_Status)) +
+  geom_histogram( color = "black") +
+  labs(title = "Distribution of LIMIT_BAL by Payment_Status",
+       x = "LIMIT_BAL",
+       y = "Count",
+       fill = "Payment_Status") +
+  theme_minimal()#+
+  #theme(plot.background = element_rect(fill = "#fffff8"))
+
+
+ggplotly(gg)
+```
+
+> 50k is the most frequent LIMIT_BAL
+
+### Checking LIMIT_BAL Distribution unsing Q-Q plot
+
+```{r}
+ggplot(data = UCI_Credit_Card, aes(sample = LIMIT_BAL)) +
+  stat_qq() +
+  stat_qq_line(col = "red") +
+  labs(title = "Q-Q Plot for LIMIT_BAL")
+
+
+```
+
+> Asymmetrical Distribution (positively skewed)
+
+### Analysing AGE using histogram
+
+```{r}
+gg <- ggplot(UCI_Credit_Card, aes(x = AGE, fill = Payment_Status)) +
+  geom_histogram( color = "black") +
+  labs(title = "Distribution of AGE by Payment_Status",
+       x = "AGE",
+       y = "Count",
+       fill = "Payment_Status") +
+  theme_minimal()#+
+  #theme(plot.background = element_rect(fill = "#fffff8"))
+
+
+ggplotly(gg)
+```
+
+> The most frequent AGE is 29.
+
+### Checking AGEL Distribution unsing Q-Q plot
+
+```{r}
+ggplot(data = UCI_Credit_Card, aes(sample = AGE)) +
+  stat_qq() +
+  stat_qq_line(col = "red") +
+  labs(title = "Q-Q Plot for AGE")
+```
+
+> Asymmetrical Distribution (positively skewed).
+
+### Analysing BILL_AMT(i) using histogram
+
+```{r}
+
+BILL_AMT_LIST<-list("BILL_AMT1","BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5","BILL_AMT6")
+histogram_list <- lapply(BILL_AMT_LIST, function(col_name) {
+    plot_ly(UCI_Credit_Card, x = ~get(col_name), type = "histogram", histnorm = "probability density",nbinsx = 80,name = col_name) %>%
+      layout(title = "Histograms of Bill Amounts")
+  })
+  combined_plot <- subplot(histogram_list, nrows = 3)
+  combined_plot
+```
+
+> We can't see much from those plots
+
+### Using Q_Q plot to check the distrubution
+
+#### 1.BILL_AMT1
+
+```{r}
+ggplot(data = UCI_Credit_Card, aes(sample = BILL_AMT1)) +
+  stat_qq() +
+  stat_qq_line(col = "red") +
+  labs(title = "Q-Q Plot for BILL_AMT1")
+
+```
+
+#### 2.BILL_AMT2
+
+```{r}
+ggplot(data = UCI_Credit_Card, aes(sample = BILL_AMT2)) +
+  stat_qq() +
+  stat_qq_line(col = "red") +
+  labs(title = "Q-Q Plot for BILL_AMT2")
+
+```
+
+#### 3.BILL_AMT3
+
+```{r}
+ggplot(data = UCI_Credit_Card, aes(sample = BILL_AMT3)) +
+  stat_qq() +
+  stat_qq_line(col = "red") +
+  labs(title = "Q-Q Plot for BILL_AMT3")
+
+```
+
+#### 4.BILL_AMT4
+
+```{r}
+ggplot(data = UCI_Credit_Card, aes(sample = BILL_AMT4)) +
+  stat_qq() +
+  stat_qq_line(col = "red") +
+  labs(title = "Q-Q Plot for BILL_AMT4")
+
+```
+
+#### 5.BILL_AMT5
+
+```{r}
+ggplot(data = UCI_Credit_Card, aes(sample = BILL_AMT5)) +
+  stat_qq() +
+  stat_qq_line(col = "red") +
+  labs(title = "Q-Q Plot for BILL_AMT5")
+
+```
+
+#### 6.BILL_AMT6
+
+```{r}
+ggplot(data = UCI_Credit_Card, aes(sample = BILL_AMT6)) +
+  stat_qq() +
+  stat_qq_line(col = "red") +
+  labs(title = "Q-Q Plot for BILL_AMT6")
+
+```
+
+> The distribution of variables can influence both the correlation between variables and the choice of model used for analysis.
+
+BILL_AMT(i) :Amount of bill statement in month (i), 2005 (NT dollar) .So ,what does negative value mean
+
+```{r}
+negative_BILL_AMT<-UCI_Credit_Card %>%
+  filter(BILL_AMT1 < 0 | BILL_AMT2 < 0 | BILL_AMT3 < 0 | BILL_AMT4 < 0 | BILL_AMT5 < 0 | BILL_AMT6 < 0)
+head(negative_BILL_AMT)
+```
+
+> Hypothesis: It may imply that the bank owes them money, as they are making payments exceeding what is expected.
+
+### Using histogram visualisation for "PAY_AMT(i)"
+
+```{r}
+PAY_AMT_list<-c("PAY_AMT1","PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6")
+
+histogram_list <- lapply(PAY_AMT_list, function(col_name) {
+    plot_ly(UCI_Credit_Card, x = ~get(col_name), type = "histogram",nbinsx = 70 ,name = col_name) %>%
+      layout(title ="Histograms of Pay Amounts")
+  })
+  combined_plot <- subplot(histogram_list, nrows = 3)
+  combined_plot
+```
+
+> The distribution of PAY_AMT is heavily skewed and violates the assumption of normality. \> We can consider applying a log transformation to the data to make the distribution more symmetric.
+
+```{r}
+# Define a small constant to add to the variable
+epsilon <- 1e-10
+
+
+histogram_list <- lapply(PAY_AMT_list, function(col_name) {
+    plot_ly(UCI_Credit_Card, x = ~log(get(col_name) + epsilon), type = "histogram", nbinsx = 70 , name = col_name) %>%
+      layout(title = "Histograms of Pay Amounts")
+})
+
+
+combined_plot <- subplot(histogram_list, nrows = 3)
+combined_plot
+```
+
+### Catagorical DATA
+
+```{r}
+summary(UCI_Credit_Card[col_names_Cato])
+```
+
+### Using Pie Chart for SEX
+
+```{r message=FALSE, warning=FALSE}
+
+SEX_counts <- table(UCI_Credit_Card$SEX)
+
+plot_ly(labels = c("Male", "Female"), values = SEX_counts, type = 'pie') %>%
+  layout(annotations = list(
+      x = 0,
+      y = 1,
+      xref = "paper",
+      yref = "paper",
+      text = "Pie Chart for SEX",
+      font = list(color = "black", size = 20),
+      showarrow = FALSE),piecolorway = c( "pink","blue"))
+
+
+
+```
+
+> We have more than half female
+
+### Using Pie Chart for EDUCATION
+
+```{r message=FALSE, warning=FALSE}
+EDUCATION_counts <- table(UCI_Credit_Card$EDUCATION)
+EDUCATION_counts
+plot_ly(labels = list("unlabel","graduate school","university", "high school", "others", "unknown", "unknown"), values = EDUCATION_counts, type = 'pie') %>%
+  layout(annotations = list(
+      x = 0,
+      y = 1,
+      xref = "paper",
+      yref = "paper",
+      text = "Pie Chart for EDUCATION",
+      font = list(color = "black", size = 15),
+      showarrow = FALSE))
+
+```
+
+### Using Pie Chart for MARRIAGE
+
+```{r message=FALSE, warning=FALSE}
+MARRIAGE_counts <- table(UCI_Credit_Card$MARRIAGE)
+MARRIAGE_counts
+plot_ly(labels = c("unlabel","married", "single", "others"), values = MARRIAGE_counts, type = 'pie') %>%
+  layout(annotations = list(
+      x = 0,
+      y = 1,
+      xref = "paper",
+      yref = "paper",
+      text = "Pie Chart for MARRIAGE",
+      font = list(color = "black", size = 15),
+      showarrow = FALSE))
+
+```
+
+### Using barplot for "PAY_0"
+
+```{r message=FALSE, warning=FALSE}
+labels_PAY <- c("-2" = "unlabel(-2)", "-1" = "pay duly", "0" = "unlabel(0)",
+                  "1" = "pay_del_1_mth", "2" = "pay_del_2_mths",
+                  "3" = "pay_del_3_mths", "4" = "pay_del_4_mths",
+                  "5" = "pay_del_5_mths", "6" = "pay_del_6_mths",
+                  "7" = "pay_del_7_mths", "8" = "pay_del_8_mths",
+                  "9" = "pay_del_9_mths_above")
+ggplotly(
+ggplot(UCI_Credit_Card, aes(x = PAY_1, fill = PAY_1)) +
+  geom_bar() +
+  labs(title = "Bar Plot by PAY_1", y = "Frequency") +
+  theme_classic() +
+  scale_x_discrete(labels = labels_PAY)+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+)
+
+```
+
+> unlabel(0) is the most frequent category
+
+### Using barplot for "PAY_2"
+
+```{r message=FALSE, warning=FALSE}
+ggplotly(
+ggplot(UCI_Credit_Card, aes(x = PAY_2, fill = PAY_2)) +
+  geom_bar() +
+  labs(title = "Bar Plot by PAY_2", y = "Frequency") +
+  theme_classic() +
+  scale_x_discrete(labels = labels_PAY)+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+)
+```
+
+> unlabel(0) is the most frequent category
+
+### Using barplot for "PAY_3"
+
+```{r message=FALSE, warning=FALSE}
+ggplotly(
+ggplot(UCI_Credit_Card, aes(x = PAY_3, fill = PAY_3)) +
+  geom_bar() +
+  labs(title = "Bar Plot by PAY_3", y = "Frequency") +
+  theme_classic() +
+  scale_x_discrete(labels = labels_PAY)+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+)
+```
+
+> unlabel(0) is the most frequent category
+
+### Using barplot for "PAY_4"
+
+```{r message=FALSE, warning=FALSE}
+ggplotly(
+ggplot(UCI_Credit_Card, aes(x = PAY_4, fill = PAY_4)) +
+  geom_bar() +
+  labs(title = "Bar Plot by PAY_4", y = "Frequency") +
+  theme_classic() +
+  scale_x_discrete(labels = labels_PAY)+theme(axis.text.x = element_text(angle = 45, hjust = 1)
+))
+```
+
+> unlabel(0) is the most frequent category
+
+### Using barplot for "PAY_5"
+
+```{r message=FALSE, warning=FALSE}
+ggplotly(
+ggplot(UCI_Credit_Card, aes(x = PAY_5, fill = PAY_5)) +
+  geom_bar() +
+  labs(title = "Bar Plot by PAY_5", y = "Frequency") +
+  theme_classic() +
+  scale_x_discrete(labels = labels_PAY)+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+)
+
+```
+
+> unlabel(0) is the most frequent category
+
+### Using barplot for "PAY_6"
+
+```{r message=FALSE, warning=FALSE}
+ggplotly(
+ggplot(UCI_Credit_Card, aes(x = PAY_6, fill = PAY_6)) +
+  geom_bar() +
+  labs(title = "Bar Plot by PAY_6", y = "Frequency") +
+  theme_classic() +
+  scale_x_discrete(labels = labels_PAY)+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+)
+
+```
+
+> unlabel(0) is the most frequent category
+
+> > we should investigate unlabel(0)
+
+### Using Charpie for Payment_Status :
+
+```{r message=FALSE, warning=FALSE}
+PayStatue_counts <- table(UCI_Credit_Card$Payment_Status)
+
+plot_ly(labels = c("Non_default", "Default"), values = PayStatue_counts, type = 'pie') %>%
+  layout(annotations = list(
+      x = 0,
+      y = 1,
+      xref = "paper",
+      yref = "paper",
+      text = "Pie Chart for\n Payment_Status",
+      font = list(color = "black", size = 14),
+      showarrow = FALSE),piecolorway = c("blue", "lightcoral"))
+
+
+```
+
+> Nearly 80 % did not default

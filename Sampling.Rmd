@@ -1,0 +1,640 @@
+---
+title: "Predicting the Default of Credit Card Clients"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{=html}
+<style>
+  h1, h2, h3, h4, h5, h6 {
+   font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia, serif;
+  }
+  body {
+  background-color: #fffff8;
+}
+</style>
+```
+
+<hr style="border: 2px solid black;">
+
+```{r include=FALSE}
+library(readr) # Package for loading the csv file. 
+library(dplyr) # Package for manipulate DATA .
+library(ggplot2) # Package for visualize DATA .
+library(plotly) # Package for visualizing DATA in a interactive way .
+library(corrplot)  # Package for visualizing correlation matrices .
+library(DescTools) # Package for descriptive statistics and visualization tools .
+library(ltm)
+library(vcd)
+library(knitr)
+library(kableExtra)
+library(infotheo)
+library(caret)
+library(caTools)
+library(randomForest)
+library(scorecard)
+library(pROC)
+
+path_data <- "D:\\project_PFA Default of Credit Card Clients_Dataset_SAMER\\Initial_Dataset\\UCI_Credit_Card.csv"
+```
+
+
+```{r include=FALSE}
+UCI_Credit_Card <- data.frame(read.csv(path_data))
+
+
+UCI_Credit_Card<-subset(UCI_Credit_Card,select = -ID) 
+
+colnames(UCI_Credit_Card)[colnames(UCI_Credit_Card) == "PAY_0"] <- "PAY_1"
+colnames(UCI_Credit_Card)[colnames(UCI_Credit_Card) == "default.payment.next.month"] <- "Payment_Status"
+
+col_names_Quanti<-c("LIMIT_BAL","AGE",
+                      "BILL_AMT1","BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5","BILL_AMT6",
+                      "PAY_AMT1","PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6")
+col_names_Cato<-c("SEX","EDUCATION","MARRIAGE",
+                     "PAY_1","PAY_2","PAY_3","PAY_4","PAY_5","PAY_6",
+                     "Payment_Status")
+all_col_names<-c(col_names_Quanti,col_names_Cato)
+
+for (nc in col_names_Cato) {
+  UCI_Credit_Card[[nc]]<-as.factor(UCI_Credit_Card[[nc]])      
+}
+```
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(LIMIT_BAL,color=Payment_Status))+geom_histogram())
+```
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$LIMIT_BAL, probs = seq(0, 1, by = 1/3))
+quantiles[3]
+breakpoints_LIMIT<-c(81000,210000,Inf)
+bins_LIMIT<-woebin(UCI_Credit_Card, y = "Payment_Status",x="LIMIT_BAL", breaks_list = list(LIMIT_BAL = breakpoints_LIMIT))
+bins_LIMIT
+
+```
+
+```{r}
+woebin_plot(bins_LIMIT, plot_type = "posprob")
+```
+
+```{r}
+UCI_Credit_Card_binned<- UCI_Credit_Card
+for (i in 1:length(UCI_Credit_Card$LIMIT_BAL)) {
+  if (UCI_Credit_Card$LIMIT_BAL[i] <= 81000) {
+    UCI_Credit_Card_binned$LIMIT_BAL[i] <- "0"
+  } else if (UCI_Credit_Card$LIMIT_BAL[i] <= 210000) {
+    UCI_Credit_Card_binned$LIMIT_BAL[i] <- "1"
+  } else {
+    UCI_Credit_Card_binned$LIMIT_BAL[i] <- "2"
+  }
+}
+ggplot(data = UCI_Credit_Card_binned,aes(LIMIT_BAL,color=Payment_Status))+geom_bar()
+```
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(AGE,color=Payment_Status))+geom_histogram())
+```
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$AGE, probs = seq(0, 1, by = 1/3))
+quantiles
+breakpoints_AGE<-c( 30,39,Inf)
+bins_AGE<-woebin(UCI_Credit_Card, y = "Payment_Status",x="AGE", breaks_list = list(AGE = breakpoints_AGE))
+bins_AGE
+```
+
+```{r}
+woebin_plot(bins_AGE, plot_type = "posprob")
+```
+```{r}
+for (i in 1:length(UCI_Credit_Card$AGE)) {
+  if (UCI_Credit_Card$AGE[i] <= 30) {
+    UCI_Credit_Card_binned$AGE[i] <- "0"
+  } else if (UCI_Credit_Card$AGE[i] <= 39) {
+    UCI_Credit_Card_binned$AGE[i] <- "1"
+  } else {
+    UCI_Credit_Card_binned$AGE[i] <- "2"
+  }
+}
+ggplot(data = UCI_Credit_Card_binned,aes(AGE,color=Payment_Status))+geom_bar()
+```
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(BILL_AMT1,color=Payment_Status))+geom_histogram())
+```
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$BILL_AMT1, probs = seq(0, 1, by = 1/4))
+quantiles
+breakpoints_BILL1<-c(3558.75,22381.50,67091.00,Inf)
+
+bins_BILL1 <- woebin(UCI_Credit_Card, y = "Payment_Status", x = "BILL_AMT1", breaks_list = list(BILL_AMT1 = breakpoints_BILL1))
+bins_BILL1
+```
+
+```{r}
+woebin_plot(bins_BILL1, plot_type = "posprob")
+```
+```{r}
+for (i in 1:length(UCI_Credit_Card$BILL_AMT1)) {
+  if (UCI_Credit_Card$BILL_AMT1[i] <= 3558.75) {
+    UCI_Credit_Card_binned$BILL_AMT1[i] <- "0"
+  } else if (UCI_Credit_Card$BILL_AMT1[i] <= 22381.50) {
+    UCI_Credit_Card_binned$BILL_AMT1[i] <- "1"
+  } else if(UCI_Credit_Card$BILL_AMT1[i]<=67091.00) {
+    UCI_Credit_Card_binned$BILL_AMT1[i] <- "2"
+  }else {
+    UCI_Credit_Card_binned$BILL_AMT1[i] <- "3"
+  }
+}
+ggplot(data = UCI_Credit_Card_binned,aes(BILL_AMT1,color=Payment_Status))+geom_bar()
+```
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(BILL_AMT2,color=Payment_Status))+geom_histogram())
+```
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$BILL_AMT2, probs = seq(0, 1, by = 1/4))
+quantiles
+breakpoints_BILL2<-c(2984.75,21200,64006.25,Inf)
+
+bins_BILL2<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "BILL_AMT2", breaks_list = list(BILL_AMT2 = breakpoints_BILL2))
+bins_BILL2
+```
+
+```{r}
+woebin_plot(bins_BILL2, plot_type = "posprob")
+```
+```{r}
+for (i in 1:length(UCI_Credit_Card$BILL_AMT2)) {
+  if (UCI_Credit_Card$BILL_AMT2[i] <= 2984.75) {
+    UCI_Credit_Card_binned$BILL_AMT2[i] <- "0"
+  } else if (UCI_Credit_Card$BILL_AMT2[i] <= 21200) {
+    UCI_Credit_Card_binned$BILL_AMT2[i] <- "1"
+  } else if (UCI_Credit_Card$BILL_AMT2[i] <= 64006.25) {
+    UCI_Credit_Card_binned$BILL_AMT2[i] <- "2"
+  } else {UCI_Credit_Card_binned$BILL_AMT2[i] <- "3"}
+}
+ggplot(data = UCI_Credit_Card_binned,aes(BILL_AMT2,color=Payment_Status))+geom_bar()
+```
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(BILL_AMT3,color=Payment_Status))+geom_histogram())
+```
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$BILL_AMT3, probs = seq(0, 1, by = 1/4))
+quantiles
+breakpoints_BILL3<-c(2666.25,20088.50,60164.75,Inf)
+
+bins_BILL3<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "BILL_AMT3", breaks_list = list(BILL_AMT3 = breakpoints_BILL3))
+bins_BILL3
+```
+
+```{r}
+woebin_plot(bins_BILL3, plot_type = "posprob")
+```
+```{r}
+for (i in 1:length(UCI_Credit_Card$BILL_AMT3)) {
+  if (UCI_Credit_Card$BILL_AMT3[i] <= 2666.25) {
+    UCI_Credit_Card_binned$BILL_AMT3[i] <- "0"
+  } else if (UCI_Credit_Card$BILL_AMT3[i] <= 20088.5) {
+    UCI_Credit_Card_binned$BILL_AMT3[i] <- "1"
+  } else if (UCI_Credit_Card$BILL_AMT3[i] <= 60164.75) {
+    UCI_Credit_Card_binned$BILL_AMT3[i] <- "2"
+  } else {UCI_Credit_Card_binned$BILL_AMT3[i] <- "3"}
+}
+ggplot(data = UCI_Credit_Card_binned,aes(BILL_AMT3,color=Payment_Status))+geom_bar()
+```
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(BILL_AMT4,color=Payment_Status))+geom_histogram())
+```
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$BILL_AMT4, probs = seq(0, 1, by = 1/4))
+quantiles
+
+breakpoints_BILL4<-c(2326.75,19052.00,54506.00,Inf)
+
+bins_BILL4<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "BILL_AMT4", breaks_list = list(BILL_AMT4 = breakpoints_BILL4))
+bins_BILL4
+```
+
+```{r}
+woebin_plot(bins_BILL4, plot_type = "posprob")
+```
+
+```{r}
+for (i in 1:length(UCI_Credit_Card$BILL_AMT4)) {
+  if (UCI_Credit_Card$BILL_AMT4[i] <= 2326.75) {
+    UCI_Credit_Card_binned$BILL_AMT4[i] <- "0"
+  } else if (UCI_Credit_Card$BILL_AMT4[i] <= 19052) {
+    UCI_Credit_Card_binned$BILL_AMT4[i] <- "1"
+  } else if(UCI_Credit_Card$BILL_AMT4[i] <= 54506){
+    UCI_Credit_Card_binned$BILL_AMT4[i] <- "2"
+  }else {UCI_Credit_Card_binned$BILL_AMT4[i] <- "3"}
+}
+ggplot(data = UCI_Credit_Card_binned,aes(BILL_AMT4,color=Payment_Status))+geom_bar()
+```
+
+
+
+
+
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(BILL_AMT5,color=Payment_Status))+geom_histogram())
+```
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$BILL_AMT5, probs = seq(0, 1, by = 1/4))
+quantiles
+
+breakpoints_BILL5<-c(1763.0,18104.5,50190.5,Inf)
+
+bins_BILL5<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "BILL_AMT5", breaks_list = list(BILL_AMT5 = breakpoints_BILL5))
+bins_BILL5
+```
+
+```{r}
+woebin_plot(bins_BILL5, plot_type = "posprob")
+```
+
+```{r}
+for (i in 1:length(UCI_Credit_Card$BILL_AMT5)) {
+  if (UCI_Credit_Card$BILL_AMT5[i] <= 1763.0) {
+    UCI_Credit_Card_binned$BILL_AMT5[i] <- "0"
+  } else if (UCI_Credit_Card$BILL_AMT5[i] <= 18104.5) {
+    UCI_Credit_Card_binned$BILL_AMT5[i] <- "1"
+  } else if(UCI_Credit_Card$BILL_AMT5[i] <= 50190.5) {
+    UCI_Credit_Card_binned$BILL_AMT5[i] <- "2"
+  }else{UCI_Credit_Card_binned$BILL_AMT5[i] <- "3"}
+}
+ggplot(data = UCI_Credit_Card_binned,aes(BILL_AMT5,color=Payment_Status))+geom_bar()
+```
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(BILL_AMT6,color=Payment_Status))+geom_histogram())
+```
+
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$BILL_AMT6, probs = seq(0, 1, by = 1/4))
+quantiles
+
+breakpoints_BILL6<-c(1256.00,17071.00,49198.25,Inf)
+bins_BILL6<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "BILL_AMT6", breaks_list = list(BILL_AMT6 = breakpoints_BILL6))
+bins_BILL6
+```
+
+```{r}
+woebin_plot(bins_BILL6, plot_type = "posprob")
+```
+
+```{r}
+for (i in 1:length(UCI_Credit_Card$BILL_AMT6)) {
+  if (UCI_Credit_Card$BILL_AMT6[i] <= 1256.00) {
+    UCI_Credit_Card_binned$BILL_AMT6[i] <- "0"
+  } else if (UCI_Credit_Card$BILL_AMT6[i] <= 17071.00) {
+    UCI_Credit_Card_binned$BILL_AMT6[i] <- "1"
+  } else if(UCI_Credit_Card$BILL_AMT6[i] <= 49198.25){
+    UCI_Credit_Card_binned$BILL_AMT6[i] <- "2"
+  }else{UCI_Credit_Card_binned$BILL_AMT6[i] <- "3"}
+}
+ggplot(data = UCI_Credit_Card_binned,aes(BILL_AMT6,color=Payment_Status))+geom_bar()
+```
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(PAY_AMT1,color=Payment_Status))+geom_histogram())
+```
+
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$PAY_AMT1, probs = seq(0, 1, by = 1/3))
+quantiles
+breakpoints_PAY1<-c(1428,3900,Inf)
+bins_PAY1<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "PAY_AMT1", breaks_list = list(PAY_AMT1 = breakpoints_PAY1))
+bins_PAY1
+```
+
+```{r}
+woebin_plot(bins_PAY1, plot_type = "posprob")
+```
+```{r}
+for (i in 1:length(UCI_Credit_Card$PAY_AMT1)) {
+  if (UCI_Credit_Card$PAY_AMT1[i] <= 1428) {
+    UCI_Credit_Card_binned$PAY_AMT1[i] <- "0"
+  } else if (UCI_Credit_Card$PAY_AMT1[i] <= 3900) {
+    UCI_Credit_Card_binned$PAY_AMT1[i] <- "1"
+  } else {
+    UCI_Credit_Card_binned$PAY_AMT1[i] <- "2"
+  }
+}
+ggplot(data = UCI_Credit_Card_binned,aes(PAY_AMT1,color=Payment_Status))+geom_bar()
+```
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(PAY_AMT2,color=Payment_Status))+geom_histogram())
+```
+
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$PAY_AMT2, probs = seq(0, 1, by = 1/3))
+quantiles
+breakpoints_PAY2<-c(1300,3600,Inf)
+bins_PAY2<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "PAY_AMT2", breaks_list = list(PAY_AMT2 = breakpoints_PAY2))
+bins_PAY2
+```
+
+```{r}
+woebin_plot(bins_PAY2, plot_type = "posprob")
+```
+```{r}
+for (i in 1:length(UCI_Credit_Card$PAY_AMT2)) {
+  if (UCI_Credit_Card$PAY_AMT2[i] <= 1300) {
+    UCI_Credit_Card_binned$PAY_AMT2[i] <- "0"
+  } else if (UCI_Credit_Card$PAY_AMT2[i] <= 3600) {
+    UCI_Credit_Card_binned$PAY_AMT2[i] <- "1"
+  } else {
+    UCI_Credit_Card_binned$PAY_AMT2[i] <- "2"
+  }
+}
+ggplot(data = UCI_Credit_Card_binned,aes(PAY_AMT2,color=Payment_Status))+geom_bar()
+```
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(PAY_AMT3,color=Payment_Status))+geom_histogram())
+```
+
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$PAY_AMT3, probs = seq(0, 1, by = 1/3))
+quantiles
+breakpoints_PAY3<-c(1000,3023,Inf)
+bins_PAY3<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "PAY_AMT3", breaks_list = list(PAY_AMT3 = breakpoints_PAY3))
+bins_PAY3
+```
+
+```{r}
+woebin_plot(bins_PAY3, plot_type = "posprob")
+```
+```{r}
+for (i in 1:length(UCI_Credit_Card$PAY_AMT3)) {
+  if (UCI_Credit_Card$PAY_AMT3[i] <= 1000) {
+    UCI_Credit_Card_binned$PAY_AMT3[i] <- "0"
+  } else if (UCI_Credit_Card$PAY_AMT3[i] <= 3023) {
+    UCI_Credit_Card_binned$PAY_AMT3[i] <- "1"
+  } else {
+    UCI_Credit_Card_binned$PAY_AMT3[i] <- "2"
+  }
+}
+ggplot(data = UCI_Credit_Card_binned,aes(PAY_AMT3,color=Payment_Status))+geom_bar()
+```
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(PAY_AMT4,color=Payment_Status))+geom_histogram())
+```
+
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$PAY_AMT4, probs = seq(0, 1, by = 1/3))
+quantiles
+breakpoints_PAY4<-c(697.6667,3000,Inf)
+bins_PAY4<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "PAY_AMT4", breaks_list = list(PAY_AMT4 = breakpoints_PAY4))
+bins_PAY4
+```
+
+```{r}
+woebin_plot(bins_PAY4, plot_type = "posprob")
+```
+```{r}
+for (i in 1:length(UCI_Credit_Card$PAY_AMT4)) {
+  if (UCI_Credit_Card$PAY_AMT4[i] <= 697.6667) {
+    UCI_Credit_Card_binned$PAY_AMT4[i] <- "0"
+  } else if (UCI_Credit_Card$PAY_AMT4[i] <= 3000) {
+    UCI_Credit_Card_binned$PAY_AMT4[i] <- "1"
+  } else {
+    UCI_Credit_Card_binned$PAY_AMT4[i] <- "2"
+  }
+}
+ggplot(data = UCI_Credit_Card_binned,aes(PAY_AMT4,color=Payment_Status))+geom_bar()
+```
+
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(PAY_AMT5,color=Payment_Status))+geom_histogram())
+```
+
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$PAY_AMT5, probs = seq(0, 1, by = 1/3))
+quantiles
+breakpoints_PAY5<-c(696,3000,Inf)
+bins_PAY5<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "PAY_AMT5", breaks_list = list(PAY_AMT5 = breakpoints_PAY5))
+bins_PAY5
+```
+
+```{r}
+woebin_plot(bins_PAY5, plot_type = "posprob")
+```
+```{r}
+for (i in 1:length(UCI_Credit_Card$PAY_AMT5)) {
+  if (UCI_Credit_Card$PAY_AMT5[i] <= 696) {
+    UCI_Credit_Card_binned$PAY_AMT5[i] <- "0"
+  } else if (UCI_Credit_Card$PAY_AMT5[i] <= 3000) {
+    UCI_Credit_Card_binned$PAY_AMT5[i] <- "1"
+  } else {
+    UCI_Credit_Card_binned$PAY_AMT5[i] <- "2"
+  }
+}
+ggplot(data = UCI_Credit_Card_binned,aes(PAY_AMT5,color=Payment_Status))+geom_bar()
+```
+
+
+```{r}
+ggplotly(ggplot(UCI_Credit_Card,aes(PAY_AMT6,color=Payment_Status))+geom_histogram())
+```
+
+
+```{r}
+quantiles <- quantile(UCI_Credit_Card$PAY_AMT6, probs = seq(0, 1, by = 1/3))
+quantiles
+breakpoints_PAY6<-c(613.6667,3000,Inf)
+bins_PAY6<- woebin(UCI_Credit_Card, y = "Payment_Status", x = "PAY_AMT6", breaks_list = list(PAY_AMT6 = breakpoints_PAY6))
+bins_PAY6
+```
+
+```{r}
+woebin_plot(bins_PAY6, plot_type = "posprob")
+```
+
+```{r}
+for (i in 1:length(UCI_Credit_Card$PAY_AMT6)) {
+  if (UCI_Credit_Card$PAY_AMT6[i] <= 613.6667) {
+    UCI_Credit_Card_binned$PAY_AMT6[i] <- "0"
+  } else if (UCI_Credit_Card$PAY_AMT6[i] <= 3000) {
+    UCI_Credit_Card_binned$PAY_AMT6[i] <- "1"
+  } else {
+    UCI_Credit_Card_binned$PAY_AMT6[i] <- "2"
+  }
+}
+ggplot(data = UCI_Credit_Card_binned,aes(PAY_AMT6,color=Payment_Status))+geom_bar()
+```
+
+```{r}
+for (nc in all_col_names) {
+  UCI_Credit_Card_binned[[nc]]<-as.factor(UCI_Credit_Card_binned[[nc]])      
+}
+```
+
+
+```{r}
+ggplot(UCI_Credit_Card_binned,aes(x=MARRIAGE,fill=Payment_Status))+geom_bar()
+UCI_Credit_Card_binned$MARRIAGE[UCI_Credit_Card_binned$MARRIAGE == "0"] <- "1"
+```
+
+
+```{r}
+ggplot(UCI_Credit_Card_binned,aes(x=EDUCATION,fill=Payment_Status))+geom_bar()
+UCI_Credit_Card_binned$EDUCATION[UCI_Credit_Card_binned$EDUCATION == "0"] <- "1"
+UCI_Credit_Card_binned$EDUCATION[UCI_Credit_Card_binned$EDUCATION == "5"] <- "4"
+
+```
+
+
+```{r}
+set.seed(420)
+train_index  <- sample.split(UCI_Credit_Card_binned$Payment_Status, SplitRatio = 0.7)
+train_data <- UCI_Credit_Card_binned[train_index, ]
+test_data <- UCI_Credit_Card_binned[!train_index, ]
+
+model_logistic_full <- glm(Payment_Status ~ ., data = train_data, family = binomial)
+model_logistic_null <- glm(Payment_Status ~ 1, data = train_data, family = binomial)
+
+both = step(model_logistic_null, direction = "both", scope = formula(model_logistic_full))
+
+```
+
+
+```{r}
+
+
+model_logistic <- glm(Payment_Status ~ PAY_1 + PAY_4 + PAY_AMT2 + PAY_6 + LIMIT_BAL + 
+    PAY_AMT1 + BILL_AMT3 + EDUCATION + PAY_AMT4 + PAY_3 + MARRIAGE + 
+    SEX + PAY_AMT6 + BILL_AMT1 + PAY_2 + AGE, data = train_data, family = binomial)
+
+
+
+predictions <- predict(model_logistic, newdata = test_data, type = "response")
+
+
+
+predicted_classes <- ifelse(predictions > 0.42, 1, 0)
+
+
+
+
+# Create a confusion matrix
+confusion_matrix <- confusionMatrix(data = factor(test_data$Payment_Status),
+                                    reference = factor(predicted_classes))
+
+# Print the confusion matrix
+print(confusion_matrix)
+
+save(model_logistic, file = "model_logistic.RData")
+# Generate a sequence of threshold values from 0 to 1
+thresholds <- seq(0, 1, by = 0.01)
+
+# Initialize variables to store accuracy and corresponding threshold
+max_accuracy <- 0
+best_threshold <- 0
+
+# Iterate over each threshold value
+for (threshold in thresholds) {
+  # Convert probabilities to binary predictions based on the threshold
+  binary_predictions <- ifelse(predictions >= threshold, 1, 0)
+  
+  # Calculate accuracy
+  accuracy <- sum(binary_predictions == test_data$Payment_Status) / length(test_data$Payment_Status)
+  
+  # Update maximum accuracy and best threshold if current accuracy is higher
+  if (accuracy > max_accuracy) {
+    max_accuracy <- accuracy
+    best_threshold <- threshold
+  }
+}
+
+# Print the best threshold and corresponding maximum accuracy
+print(paste("Best Threshold:", best_threshold))
+print(paste("Maximum Accuracy:", max_accuracy))
+```
+
+```{r}
+roc_curve <- roc(test_data$Payment_Status, predictions)
+
+# Calculate AUC
+
+auc_value <- auc(roc_curve)
+GINI <- auc_value*2-1
+
+# Plot ROC curve
+plot(roc_curve, main = "ROC Curve", col = "blue", lwd = 2,
+     print.auc = TRUE, auc.polygon = TRUE, grid = TRUE,
+     legacy.axes = TRUE)
+GINI  
+0.5382526
+0.5422691
+0.5424142
+# Assuming you have an ROC curve stored in roc_curve
+threshold_youden <- roc_curve$thresholds[which.max(roc_curve$sensitivities + roc_curve$specificities - 1)]
+threshold_youden
+
+```
+
+# mlr 3 :
+## resempling:
+```{r}
+# library(mlr3)
+# library(data.table)
+
+
+# 
+# # Define the task
+# task <- TaskClassif$new(id = "UCI_Credit_Card", backend = UCI_Credit_Card, target = "Payment_Status")
+# 
+# # Choose a learner
+# learner <- lrn("classif.rpart")
+# 
+# # Define resampling strategy (e.g., 5-fold cross-validation)
+# resampling <- rsmp("cv", folds = 5)
+# library(mlr3learners)
+# # Combine learner and resampling
+# lrn_resampling <- lrn("classif.rpart", resampling = resampling)
+# 
+# # Run resampling
+# rr <- resample(task = task, learner = lrn_resampling)
+# 
+# # Print results
+# print(rr)
+# 
+# # Retrieve performance
+# rr$score(msr("classif.ce"))
+
+
+```
+

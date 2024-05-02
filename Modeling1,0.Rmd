@@ -1,0 +1,220 @@
+---
+title: "Predicting the Default of Credit Card Clients"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{=html}
+<style>
+  h1, h2, h3, h4, h5, h6 {
+   font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia, serif;
+  }
+  body {
+  background-color: #fffff8;
+}
+</style>
+```
+
+<hr style="border: 2px solid black;">
+
+```{r include=FALSE}
+library(readr) # Package for loading the csv file. 
+library(dplyr) # Package for manipulate DATA .
+library(ggplot2) # Package for visualize DATA .
+library(plotly) # Package for visualizing DATA in a interactive way .
+library(corrplot)  # Package for visualizing correlation matrices .
+library(DescTools) # Package for descriptive statistics and visualization tools .
+library(ltm)
+library(vcd)
+library(knitr)
+library(kableExtra)
+library(infotheo)
+library(caret)
+library(caTools)
+library(randomForest)
+library(scorecard)
+library(officer)
+library(pROC)
+library(MASS)
+
+path_data <- "D:\\project_PFA Default of Credit Card Clients_Dataset_SAMER\\Initial_Dataset\\UCI_Credit_Card.csv"
+UCI_Credit_Card <- data.frame(read.csv(path_data))
+
+
+UCI_Credit_Card<-subset(UCI_Credit_Card,select = -ID) 
+
+colnames(UCI_Credit_Card)[colnames(UCI_Credit_Card) == "PAY_0"] <- "PAY_1"
+colnames(UCI_Credit_Card)[colnames(UCI_Credit_Card) == "default.payment.next.month"] <- "Payment_Status"
+
+col_names_Quanti<-c("LIMIT_BAL","AGE",
+                      "BILL_AMT1","BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5","BILL_AMT6",
+                      "PAY_AMT1","PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6")
+col_names_Cato<-c("SEX","EDUCATION","MARRIAGE",
+                     "PAY_1","PAY_2","PAY_3","PAY_4","PAY_5","PAY_6",
+                     "Payment_Status")
+all_col_names<-c(col_names_Quanti,col_names_Cato)
+
+for (nc in col_names_Cato) {
+  UCI_Credit_Card[[nc]]<-as.factor(UCI_Credit_Card[[nc]])      
+}
+```
+
+
+
+## Sampling :
+
+```{r message=FALSE, warning=FALSE}
+set.seed(420)
+train_index  <- sample.split(UCI_Credit_Card$Payment_Status, SplitRatio = 0.7)
+train_data <- UCI_Credit_Card[train_index, ]
+test_data <- UCI_Credit_Card[!train_index, ]
+```
+
+> sampling the Data with 0.7 ratio !! respecting the distribution of the Payment Status in the main Dataset .
+
+```{r message=FALSE, warning=FALSE}
+PayStatue_counts <- table(train_data$Payment_Status)
+
+plot_ly(labels = c("Non_default", "Default"), values = PayStatue_counts, type = 'pie') %>%
+  layout(annotations = list(
+      x = 0,
+      y = 1,
+      xref = "paper",
+      yref = "paper",
+      text = "Pie Chart for Payment_Status\ntrain_data",
+      font = list(color = "black", size = 14),
+      showarrow = FALSE),piecolorway = c("lightgreen", "lightcoral"))
+```
+
+> checking the distrubution  
+
+```{r message=FALSE, warning=FALSE}
+PayStatue_counts <- table(test_data$Payment_Status)
+
+plot_ly(labels = c("Non_default", "Default"), values = PayStatue_counts, type = 'pie') %>%
+  layout(annotations = list(
+      x = 0,
+      y = 1,
+      xref = "paper",
+      yref = "paper",
+      text = "Pie Chart for Payment_Status\ntest_data",
+      font = list(color = "black", size = 14),
+      showarrow = FALSE),piecolorway = c("lightgreen", "lightcoral"))
+
+```
+> checking the distrubution  
+
+## Applying Logistic regression (trivial model)
+
+```{r message=FALSE, warning=FALSE}
+
+model_logistic <- glm(Payment_Status ~., data = train_data, family = binomial)
+
+
+
+predictions <- predict(model_logistic, newdata = test_data, type = "response")
+
+
+predicted_classes <- ifelse(predictions >0.5, 1, 0)
+
+
+
+
+# Create a confusion matrix
+confusion_matrix <- confusionMatrix(data = factor(test_data$Payment_Status),
+                                    reference = factor(predicted_classes))
+
+# Print the confusion matrix
+print(confusion_matrix)
+```
+
+> P-Value [Acc > NIR] : 1<!>
+
+```{r message=FALSE, warning=FALSE}
+
+
+# Compute ROC curve
+roc_curve <- roc(test_data$Payment_Status, predictions)
+
+# Calculate AUC
+auc_value <- auc(roc_curve)
+GINI <- auc_value*2-1
+GINI
+# Plot ROC curve
+plot(roc_curve, main = "ROC Curve", col = "blue", lwd = 2,
+     print.auc = TRUE, auc.polygon = TRUE, grid = TRUE,
+     legacy.axes = TRUE)
+
+
+
+```
+
+## Applying Random Forest :
+
+```{r}
+rf_model <- randomForest(Payment_Status ~ ., data = train_data)
+
+rf_predictions <- predict(rf_model, newdata = test_data)
+
+# Convert predictions to factor with levels consistent with reference
+rf_predictions_factor <- factor(rf_predictions, levels = levels(factor(test_data$Payment_Status)))
+
+# Create confusion matrix
+rf_confusion_matrix <- confusionMatrix(data = rf_predictions_factor,
+                                       reference = factor(test_data$Payment_Status))
+
+
+
+
+print(rf_confusion_matrix)
+
+```
+
+
+
+```{r}
+
+# Make predictions on test data (get fraction of votes)
+rf_predictions <- predict(rf_model, newdata = test_data,type = "prob")
+
+rf_probabilities <- rf_predictions[, "1"]
+
+roc_curve <- roc(test_data$Payment_Status, rf_probabilities)
+auc_value <- auc(roc_curve)
+GINI<-auc_value*2-1
+# Plot ROC curve
+plot(roc_curve, main = "ROC Curve for Random Forest Model",col = "blue", lwd = 2,
+     print.auc = TRUE, auc.polygon = TRUE, grid = TRUE,
+     legacy.axes = TRUE)
+GINI
+threshold_youden <- roc_curve$thresholds[which.max(roc_curve$sensitivities + roc_curve$specificities - 1)]
+threshold_youden
+
+```
+
+## backward selection 
+
+```{r}
+# Fit logistic regression model with all predictors
+model_logistic_full <- glm(Payment_Status ~ ., data = train_data, family = binomial)
+model_logistic_null <- glm(Payment_Status ~ 1, data = train_data, family = binomial)
+rf_model <- randomForest(Payment_Status ~ ., data = train_data)
+rf_model_null <- randomForest(Payment_Status ~ 1, data = train_data)
+backward = step(model_logistic_full) #backward selection by default
+
+
+
+```
+## forward selection 
+```{r}
+forward = step(model_logistic_null, direction = "forward", scope = formula(model_logistic_full))
+```
+## Both selection
+```{r}
+both = step(model_logistic_null, direction = "both", scope = formula(model_logistic_full))
+
+```
+

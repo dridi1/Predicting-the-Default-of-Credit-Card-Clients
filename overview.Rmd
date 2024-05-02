@@ -1,0 +1,98 @@
+---
+title: "Predicting the Default of Credit Card"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+Prediction of Credit Card Default
+```{=html}
+<style>
+  h1, h2, h3, h4, h5, h6 {
+   font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia, serif;
+  }
+  body {
+  background-color: #fffff8;
+}
+</style>
+```
+<hr style="border: 2px solid black;">
+
+## Project Overview
+
+-   **Author:** Dridi Slim\
+    **Date:** February 11, 2024\
+    **Institution:** [ESSAI](http://www.essai.rnu.tn/)\
+    **Supervisor:** [Professor Samer Azzabi](https://www.linkedin.com/in/samer-azzabi-5449691b3/)
+
+<hr style="border: 2px solid black;">
+
+### Project Goal
+
+The primary objective of this project is to develop a predictive model for determining the likelihood of credit card clients defaulting on their payments.
+
+<hr style="border: 2px solid black;">
+
+## Checking the data
+
+### Load Libraries
+
+```{r,message=FALSE, warning=FALSE}
+library(readr) # Package for loading the csv file. 
+library(dplyr) # Package for manipulate DATA .
+library(ggplot2) # Package for visualize DATA .
+library(plotly) # Package for visualizing DATA in a interactive way .
+library(corrplot)  # Package for visualizing correlation matrices .
+library(DescTools) # Package for descriptive statistics and visualization tools .
+library(ltm)
+library(vcd)
+library(knitr)
+library(kableExtra)
+library(infotheo)
+library(caret)
+library(caTools)
+library(randomForest)
+library(scorecard)
+library(officer)
+```
+
+------------------------------------------------------------------------
+
+### Load Data
+
+```{r}
+path_data <- "D:\\project_PFA Default of Credit Card Clients_Dataset_SAMER\\Initial_Dataset\\UCI_Credit_Card.csv"
+UCI_Credit_Card <- data.frame(read.csv(path_data))
+
+
+```
+
+------------------------------------------------------------------------
+
+### Overview of the Data
+
+```{r warning=FALSE}
+head(UCI_Credit_Card)
+```
+
+### Check the info of our DATA
+
+```{r}
+describe(UCI_Credit_Card)
+```
+
+> We have : <br> - Categorical DATA set to int type we should pay attention to that.<br> - A gap between PAY_0 and PAY_2 we should investigate why.<br> - ID column is useless we should do something about it.<br> - Our target variable is default.payment.next.month.<br>
+
+### Check is their any NA
+
+```{r}
+colSums(is.na(UCI_Credit_Card)) #calculating in every col the NA value
+```
+
+> We have no Missing DATA
+
+<hr style="border: 1px solid black;">
+
+[Next Page]("Analyse.html")
+

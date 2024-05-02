@@ -1,0 +1,80 @@
+---
+title: "Predicting the Default of Credit Card Clients"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{=html}
+<style>
+  h1, h2, h3, h4, h5, h6 {
+   font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia, serif;
+  }
+  body {
+  background-color: #fffff8;
+}
+</style>
+```
+<hr style="border: 2px solid black;">
+
+```{r include=FALSE}
+library(readr) # Package for loading the csv file. 
+library(dplyr) # Package for manipulate DATA .
+library(ggplot2) # Package for visualize DATA .
+library(plotly) # Package for visualizing DATA in a interactive way .
+library(corrplot)  # Package for visualizing correlation matrices .
+library(DescTools) # Package for descriptive statistics and visualization tools .
+library(ltm)
+library(vcd)
+library(knitr)
+library(kableExtra)
+library(infotheo)
+library(caret)
+library(caTools)
+library(randomForest)
+library(scorecard)
+library(officer)
+
+path_data <- "D:\\project_PFA Default of Credit Card Clients_Dataset_SAMER\\Initial_Dataset\\UCI_Credit_Card.csv"
+UCI_Credit_Card <- data.frame(read.csv(path_data))
+```
+
+## Cleaning and Manipulating our DATA
+
+### Removing ID colomn
+
+
+```{r}
+UCI_Credit_Card<-subset(UCI_Credit_Card,select = -ID) 
+```
+
+### Changing the label of PAY_0 to PAY_1 AND default.payment.next.month to PaymentStatus
+
+```{r}
+colnames(UCI_Credit_Card)[colnames(UCI_Credit_Card) == "PAY_0"] <- "PAY_1"
+colnames(UCI_Credit_Card)[colnames(UCI_Credit_Card) == "default.payment.next.month"] <- "Payment_Status"
+```
+
+### Creating a list that have column names of Quantitative variables and another one for Catogorical variables
+
+```{r}
+col_names_Quanti<-c("LIMIT_BAL","AGE",
+                      "BILL_AMT1","BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5","BILL_AMT6",
+                      "PAY_AMT1","PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6")
+col_names_Cato<-c("SEX","EDUCATION","MARRIAGE",
+                     "PAY_1","PAY_2","PAY_3","PAY_4","PAY_5","PAY_6",
+                     "Payment_Status")
+all_col_names<-c(col_names_Quanti,col_names_Cato)
+```
+
+### Changing Catogorical variables type to Factors
+
+```{r}
+for (nc in col_names_Cato) {
+  UCI_Credit_Card[[nc]]<-as.factor(UCI_Credit_Card[[nc]])      
+}
+```
+
+<hr style="border: 1px solid black;">
